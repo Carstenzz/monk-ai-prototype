@@ -6,7 +6,7 @@ cv.width=W*dpr;cv.height=H*dpr;g.setTransform(dpr,0,0,dpr,0,0);
 const rowY=p=>TY+p*TH+TH/2,sleep=ms=>new Promise(r=>setTimeout(r,ms)),now=()=>performance.now();
 const DESC={push:'PUSH: dorong musuh di depanmu 1 tile ke belakang',pull:'PULL: tarik musuh terdekat di depan ke tile tepat di depanmu',swap:'SWAP: tukar posisi dengan musuh tepat di depan',twist:'TWIST: balik arah hadap musuh tepat di depan',throw:'THROW: lempar musuh tepat di belakang ke depanmu'};
 const HINT='Swipe ↕ gerak · ↔ putar · drag kartu ↑ pakai · ↓ buang semua';
-let cd=-1,ents,ghosts,fx,deck,disc,hand,kills,turn,busy,over,msg,drag,swipe,shk=0,loaded=0,tot=0;
+let cd=-1,hooks=[],ents,ghosts,fx,deck,disc,hand,kills,turn,busy,over,msg,drag,swipe,shk=0,loaded=0,tot=0;
 (function ld(o){for(const k in o){const v=o[k];if(v&&v.src){tot++;const i=new Image();i.onload=()=>{if(++loaded===tot)newGame()};i.src=v.src;v.im=i}else if(v&&typeof v==='object')ld(v)}})(A);
 const shuffle=a=>{for(let i=a.length-1;i>0;i--){const j=Math.random()*(i+1)|0;[a[i],a[j]]=[a[j],a[i]]}return a};
 const at=p=>ents.find(e=>e.alive&&e.pos===p),pl=()=>ents[0],foes=()=>ents.filter(e=>e.alive&&e!==ents[0]);
@@ -14,22 +14,28 @@ const inb=q=>q>=0&&q<N;
 function draw1(){if(!deck.length){deck=shuffle(disc);disc=[]}return deck.pop()}
 function newGame(){
  ents=[{t:'monk',pos:2,face:1,alive:1,vy:rowY(2)}];ghosts=[];fx=[];turn=1;busy=false;over=0;drag=swipe=null;msg=HINT;
- kills=0;cd=-1;
+ kills=0;cd=-1;hooks=[];
  deck=shuffle(['push','pull','swap','twist','throw','push','pull','swap','twist','throw']);disc=[];hand=[draw1(),draw1(),draw1()];
- for(let i=0;i<3;i++)spawn();foes().forEach(e=>e.intent=plan(e));
+ for(let i=0;i<3;i++){const em=empties();spawn(em[Math.random()*em.length|0])}fixArchers();foes().forEach(e=>e.intent=plan(e));
 }
-function spawn(){const em=[0,1,2,3,4].filter(p=>!at(p));if(!em.length)return;const pos=em[Math.random()*em.length|0];ents.push({t:['sword','archer','thrower'][Math.random()*3|0],pos,face:Math.random()<.5?1:-1,alive:1,windup:0,vy:rowY(pos)})}
+const hookAt=q=>hooks.some(h=>h.pos===q);
+const empties=()=>[0,1,2,3,4].filter(p=>!at(p)&&!hookAt(p));
+function spawn(pos,vx){if(pos===undefined)return;ents.push({t:['sword','archer','thrower'][Math.random()*3|0],pos,face:Math.random()<.5?1:-1,alive:1,windup:0,vy:rowY(pos),vx:vx||0})}
+function archerHasCover(e){const p=pl().pos,d=Math.sign(p-e.pos);return ents.some(o=>o.alive&&o!==e&&o!==ents[0]&&Math.sign(o.pos-e.pos)===d&&Math.abs(o.pos-e.pos)<Math.abs(p-e.pos))}
+function fixArchers(){ents.forEach(e=>{if(e.alive&&e.t==='archer'&&!archerHasCover(e))e.t=Math.random()<.5?'sword':'thrower'})}
+function throwHooks(n){const em=shuffle(empties());for(let i=0;i<Math.min(n,em.length);i++)hooks.push({pos:em[i],t0:now()})}
+async function climb(){const hs=hooks.slice(),nw=hs.map(h=>{spawn(h.pos,190);return ents[ents.length-1]});fixArchers();await sleep(650);
+ hs.forEach((h,i)=>{const o=ents.find(e=>e.alive&&e!==nw[i]&&e.pos===h.pos);if(o){kill(o,1);kill(nw[i],1)}});hooks=[]}
 function tgt(e,pos,face){const o=q=>{const x=at(q);return x===e?undefined:x};
  if(e.t==='sword')return o(pos+face);
  if(e.t==='archer'){for(let q=pos+face;inb(q);q+=face)if(o(q))return o(q);return}
  return o(pos+2*face)}
 // Prioritas: 1) hadap player 2) posisi 3) ready weapon 4) reposisi (tanpa friendly fire sengaja) 5) attack
 function plan(e){
- const p=pl(),d=Math.sign(p.pos-e.pos),dist=Math.abs(p.pos-e.pos),free=q=>inb(q)&&!at(q);
+ const p=pl(),d=Math.sign(p.pos-e.pos),dist=Math.abs(p.pos-e.pos),free=q=>inb(q)&&!at(q)&&!hookAt(q);
  const mv=x=>({k:'move',d:x}),W={k:'wait'};
  if(e.t==='thrower'&&!e.windup)return{k:'ancang'};
  if(e.face!==d)return{k:'turn'};
- if(e.t==='archer'&&!e.windup)return{k:'ancang'};
  const hitP=tgt(e,e.pos,e.face)===p;
  if(e.windup&&hitP)return{k:'attack'};
  let inPos=false;
@@ -56,15 +62,18 @@ async function enemyPhase(){
  let acted=0;
  for(const e of foes().sort((a,b)=>a.pos-b.pos)){
   if(!e.alive)continue;const it=e.intent||{k:'wait'};if(it.k!=='wait'){if(acted)await sleep(300);acted=1}e.act=1;await sleep(100);
-  if(it.k==='move'){const q=e.pos+it.d;if(inb(q)&&!at(q)){e.pos=q;await sleep(300)}}
+  if(it.k==='move'){const q=e.pos+it.d;if(inb(q)&&!at(q)&&!hookAt(q)){e.pos=q;await sleep(300)}}
   else if(it.k==='turn'){e.face*=-1;await sleep(250)}
   else if(it.k==='ancang'){e.windup=1;await sleep(250)}
   else if(it.k==='attack'){e.windup=0;await doAttack(e)}
   e.act=0;if(!pl().alive)break;
  }
  if(!pl().alive)return end();
- if(foes().length<=1&&cd<0)cd=2;
- if(cd>=0){if(foes().length===0||cd===0){const n=1+(Math.random()*2|0);for(let i=0;i<n;i++)spawn();cd=-1}else cd--}
+ if(hooks.length){await climb();if(!pl().alive)return end()}
+ else{
+  if(foes().length<=1&&cd<0)cd=2;
+  if(cd>=0){if(foes().length===0||cd===0){throwHooks(1+(Math.random()*2|0));cd=-1}else cd--}
+ }
  foes().forEach(e=>e.intent=plan(e));
  turn++;msg=HINT;busy=false;
 }
@@ -77,7 +86,7 @@ async function act(fn){
  await enemyPhase();
 }
 const bad=m=>{msg=m;shk=now();return false};
-const doMove=d=>async()=>{const q=pl().pos+d;if(!inb(q))return bad('Tepi tile! Biksu bisa jatuh.');if(at(q))return bad('Tile terhalang.');pl().pos=q;await sleep(280);return true};
+const doMove=d=>async()=>{const q=pl().pos+d;if(!inb(q))return bad('Tepi tile! Biksu bisa jatuh.');if(at(q)||hookAt(q))return bad('Tile terhalang.');pl().pos=q;await sleep(280);return true};
 const doTurn=async()=>{pl().face*=-1;await sleep(220);return true};
 const discardAll=async()=>{disc.push(...hand);hand=[draw1(),draw1(),draw1()];await sleep(300);return true};
 const useCard=i=>async()=>{
@@ -94,7 +103,7 @@ const useCard=i=>async()=>{
  disc.push(c);hand[i]=draw1();await sleep(450);return true;
 };
 function show(t,b,btns){ov.innerHTML='<h2>'+t+'</h2><div>'+b+'</div>';btns.forEach(([l,f])=>{const x=document.createElement('button');x.textContent=l;x.onclick=()=>{ov.style.display='none';f()};ov.appendChild(x)});ov.style.display='flex'}
-const RULES='Mode endless: bertahan selama mungkin. Saat musuh tersisa 1 (atau 0), 1–2 musuh baru muncul acak setelah cooldown 2 giliran (langsung muncul jika arena kosong). Jatuh dari ujung tile = mati.<br>1 aksi per giliran: gerak (swipe ↑↓), putar (swipe ←→), pakai 1 kartu (drag ke atas), atau buang semua kartu (drag ke bawah).<br>Ikon di kanan = intensi musuh. Serangan hanya mengenai arah hadap. Push/throw yang menabrak musuh lain membunuh keduanya.';
+const RULES='Mode endless: bertahan selama mungkin. Saat musuh tersisa 1 (atau 0), tali grapple muncul 1–2 giliran sebelum musuh baru memanjat masuk dari kanan. Tile bertali terhalang; jika kartu menaruh musuh di sana, pendatang dan musuh itu jatuh bersama. Jatuh dari ujung tile = mati.<br>1 aksi per giliran: gerak (swipe ↑↓), putar (swipe ←→), pakai 1 kartu (drag ke atas), atau buang semua kartu (drag ke bawah).<br>Ikon di kanan = intensi musuh. Area merah menunjukkan tile yang akan terkena serangan. Pemanah baru bersiap jika biksu terlihat tanpa musuh yang menutupi. Push/throw yang menabrak musuh lain membunuh keduanya.';
 const slotX=i=>CX+(i-1)*104-44,CT=588,CW=88,CH=135;
 const P=ev=>{const r=cv.getBoundingClientRect();return{x:(ev.clientX-r.left)*W/r.width,y:(ev.clientY-r.top)*H/r.height}};
 cv.addEventListener('pointerdown',ev=>{const p=P(ev);if(over)return;
@@ -116,6 +125,21 @@ function sprite(e){const s=A.sp[e.t],f=e.face>0?'down':'up';return e.t==='monk'?
 function tri(x,y,dir,col){g.fillStyle=col;g.beginPath();g.moveTo(x,y+dir*8);g.lineTo(x-8,y-dir*3);g.lineTo(x+8,y-dir*3);g.fill()}
 function intentKey(e){const it=e.intent;if(!it)return null;const w={sword:'sword',archer:'arrow',thrower:'throw'}[e.t];
  return it.k==='move'?(it.d>0?'down':'up'):it.k==='turn'?'turn':it.k==='ancang'?w:it.k==='attack'?w+'B':null}
+function drawHook(h,t){
+ const k=Math.min(1,(t-h.t0)/450),ez=1-Math.pow(1-k,3),hx=W+30+(262-W-30)*ez,y=rowY(h.pos);
+ g.fillStyle='rgba(0,0,0,.06)';g.fillRect(105,y-TH/2,170,TH);
+ g.strokeStyle='#111';g.lineWidth=2;g.beginPath();g.moveTo(W+10,y-80);g.quadraticCurveTo((W+hx)/2,y-60+(1-ez)*-40,hx+18,y);g.stroke();
+ g.lineWidth=3.5;g.beginPath();g.moveTo(hx+22,y);g.lineTo(hx,y);g.moveTo(hx+14,y-12);g.lineTo(hx,y);g.lineTo(hx+14,y+12);g.stroke();
+}
+function warn(e){
+ const f=e.face,R='rgba(225,60,60,.9)';g.save();g.strokeStyle=R;g.fillStyle=R;
+ if(e.t==='sword'){const q=e.pos+f;if(inb(q)){const y=TY+q*TH;g.beginPath();g.rect(105,y,170,TH);g.clip();g.fillStyle='rgba(225,60,60,.14)';g.fillRect(105,y,170,TH);g.lineWidth=3;
+  for(let i=-TH;i<170;i+=16){g.beginPath();g.moveTo(105+i,y+TH);g.lineTo(105+i+TH,y);g.stroke()}}}
+ else if(e.t==='archer'){const T=targets(e);for(let q=e.pos+f;inb(q);q+=f){for(let k=-1;k<=1;k++){g.beginPath();g.arc(CX,rowY(q)+k*28,4.5,0,7);g.fill()}if(T.length&&q===T[0])break}}
+ else{const q=e.pos+2*f;if(inb(q)){const y=rowY(q);g.lineWidth=3;g.beginPath();g.arc(CX,y,15,0,7);g.stroke();g.beginPath();g.arc(CX,y,3,0,7);g.fill();
+  g.beginPath();[[-1,0],[1,0],[0,-1],[0,1]].forEach(([a,b])=>{g.moveTo(CX+a*10,y+b*10);g.lineTo(CX+a*26,y+b*26)});g.stroke()}}
+ g.restore();
+}
 const clouds=[[40,170,30],[335,130,26],[38,380,34],[350,430,30],[48,540,28],[345,520,34]];
 function draw(){
  const t=now();g.clearRect(0,0,W,H);g.fillStyle='#fff';g.fillRect(0,0,W,H);
@@ -128,8 +152,10 @@ function draw(){
  // pause + hud
  g.strokeStyle='#111';g.lineWidth=2.5;g.strokeRect(14,12,24,30);g.beginPath();g.moveTo(22,18);g.lineTo(22,36);g.moveTo(30,18);g.lineTo(30,36);g.stroke();
  g.fillStyle='#111';g.textAlign='center';g.font='15px "Segoe Print","Comic Sans MS",cursive';
- g.fillText('Giliran '+turn+' · Kill: '+kills+' · Musuh: '+foes().length+(cd>=0?' · Spawn: '+(cd+1):''),CX+14,26);
+ g.fillText('Giliran '+turn+' · Kill: '+kills+' · Musuh: '+foes().length+(hooks.length?' · Spawn: 1':cd>=0?' · Spawn: '+(cd+1):''),CX+14,26);
  g.font='11px "Segoe Print","Comic Sans MS",cursive';g.fillStyle='#444';g.fillText(drag?DESC[hand[drag.i]]:msg,CX,48);
+ hooks.forEach(h=>drawHook(h,t));
+ foes().forEach(e=>{if(e.intent&&e.intent.k==='attack')warn(e)});
  // entities
  const sh=now()-shk<300?Math.sin(now()*.08)*5:0;
  [...ents.filter(e=>e.alive)].sort((a,b)=>a.vy-b.vy).forEach(e=>{
@@ -137,7 +163,7 @@ function draw(){
   if(e.act){g.fillStyle='rgba(255,215,0,.35)';g.fillRect(105,e.vy-TH/2,170,TH)}
   if(e.intent&&e.intent.k==='attack')ox=Math.sin(t*.05)*2.5;if(e.atk)oy=e.face*14;
   if(e===pl())ox+=sh;
-  g.drawImage(im.im,CX-w/2+ox,e.vy+40-h+oy,w,h);
+  g.drawImage(im.im,CX-w/2+ox+(e.vx||0),e.vy+40-h+oy,w,h);
   if(e!==pl()){const k=intentKey(e);const ic=k&&A.int[k];const ih=56,iw=ic?ih*ic.ar:44;
    if(ic)g.drawImage(ic.im,284,e.vy-ih/2,iw,ih);
    else{g.fillStyle='#fff';g.strokeStyle='#111';g.lineWidth=2;g.fillRect(284,e.vy-28,44,56);g.strokeRect(284,e.vy-28,44,56);g.fillStyle='#111';g.font='18px sans-serif';g.fillText('…',306,e.vy+6)}}
@@ -156,4 +182,4 @@ function draw(){
  g.fillStyle='#e5645b';g.font='11px "Segoe Print","Comic Sans MS",cursive';g.fillText('buang semua',CX,H-26);
  if(drag){const im=A.cards[hand[drag.i]];g.save();g.shadowColor='rgba(0,0,0,.35)';g.shadowBlur=14;g.drawImage(im.im,drag.x-drag.ox*1.1,drag.y-drag.oy*1.1,CW*1.1,CH*1.1);g.restore()}
 }
-(function loop(){if(ents){for(const e of ents)if(e.alive)e.vy+=(rowY(e.pos)-e.vy)*.25;draw()}requestAnimationFrame(loop)})();
+(function loop(){if(ents){for(const e of ents)if(e.alive){e.vy+=(rowY(e.pos)-e.vy)*.25;e.vx=(e.vx||0)*.88}draw()}requestAnimationFrame(loop)})();

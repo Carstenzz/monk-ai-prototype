@@ -15,3 +15,5 @@ Prototype playable (canvas) untuk game biksu defensif.
 ## Kontrol
 Swipe atas/bawah = gerak, kiri/kanan = putar. Drag kartu ke atas = pakai, drag ke bawah = buang semua kartu.
 Keyboard: panah, 1-3 untuk kartu, D untuk discard.
+
+Musuh baru masuk setelah tali grapple muncul di tile tujuan. Tile grapple terblokir sampai musuh memanjat dari kanan; jika ada musuh di tile itu, keduanya jatuh. Area merah menunjukkan tile serangan, dan pemanah hanya bersiap ketika biksu terlihat jelas.
