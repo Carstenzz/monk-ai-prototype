@@ -16,15 +16,26 @@ function newGame(){
  ents=[{t:'monk',pos:2,face:1,alive:1,vy:rowY(2)}];ghosts=[];fx=[];turn=1;busy=false;over=0;drag=swipe=null;msg=HINT;
  kills=0;cd=-1;hooks=[];
  deck=shuffle(['push','pull','swap','twist','throw','push','pull','swap','twist','throw']);disc=[];hand=[draw1(),draw1(),draw1()];
- for(let i=0;i<3;i++){const em=empties();spawn(em[Math.random()*em.length|0])}fixArchers();foes().forEach(e=>e.intent=plan(e));
+ pickTiles(3).forEach(q=>mk(q));assignTypes(foes());foes().forEach(e=>e.intent=plan(e));
 }
 const hookAt=q=>hooks.some(h=>h.pos===q);
 const empties=()=>[0,1,2,3,4].filter(p=>!at(p)&&!hookAt(p));
-function spawn(pos,vx){if(pos===undefined)return;ents.push({t:['sword','archer','thrower'][Math.random()*3|0],pos,face:Math.random()<.5?1:-1,alive:1,windup:0,vy:rowY(pos),vx:vx||0})}
-function archerHasCover(e){const p=pl().pos,d=Math.sign(p-e.pos);return ents.some(o=>o.alive&&o!==e&&o!==ents[0]&&Math.sign(o.pos-e.pos)===d&&Math.abs(o.pos-e.pos)<Math.abs(p-e.pos))}
-function fixArchers(){ents.forEach(e=>{if(e.alive&&e.t==='archer'&&!archerHasCover(e))e.t=Math.random()<.5?'sword':'thrower'})}
-function throwHooks(n){const em=shuffle(empties());for(let i=0;i<Math.min(n,em.length);i++)hooks.push({pos:em[i],t0:now()})}
-async function climb(){const hs=hooks.slice(),nw=hs.map(h=>{spawn(h.pos,190);return ents[ents.length-1]});fixArchers();await sleep(650);
+function mk(pos,vx){const e={t:'sword',pos,face:Math.random()<.5?1:-1,alive:1,windup:0,vy:rowY(pos),vx:vx||0};ents.push(e);return e}
+// archer hanya muncul kalau ada musuh lain di antara dia dan player
+function assignTypes(list){let th=ents.filter(o=>o.alive&&o.t==='thrower'&&!list.includes(o)).length;
+ list.forEach(e=>{const p=pl().pos,d=Math.sign(p-e.pos);
+ const bl=ents.some(o=>o.alive&&o!==e&&o!==ents[0]&&Math.sign(o.pos-e.pos)===d&&Math.abs(o.pos-e.pos)<Math.abs(p-e.pos));
+ if(bl&&Math.random()<.7)e.t='archer';
+ else if(!bl&&!th&&Math.random()<.4){e.t='thrower';th++}
+ else e.t='sword'})}
+// kadang dua tile bersebelahan di sisi yang sama dari player (yang jauh jadi archer)
+function pickTiles(n){const em=empties(),p=pl().pos;
+ if(n>=2&&Math.random()<.6){for(const sg of shuffle([1,-1])){const c=em.filter(a=>Math.sign(a-p)===sg&&em.includes(a+sg));
+  if(c.length){const a=c[Math.random()*c.length|0];return[a,a+sg,...shuffle(em.filter(q=>q!==a&&q!==a+sg))].slice(0,n)}}}
+ return shuffle(em).slice(0,n)}
+function throwHooks(n){pickTiles(n).forEach(pos=>hooks.push({pos,t0:now()}))}
+async function climb(){if(!foes().length&&hooks.length<2)throwHooks(2-hooks.length+(Math.random()<.5?1:0));
+ const hs=hooks.slice(),nw=hs.map(h=>mk(h.pos,190));assignTypes(nw);await sleep(650);
  hs.forEach((h,i)=>{const o=ents.find(e=>e.alive&&e!==nw[i]&&e.pos===h.pos);if(o){kill(o,1);kill(nw[i],1)}});hooks=[]}
 function tgt(e,pos,face){const o=q=>{const x=at(q);return x===e?undefined:x};
  if(e.t==='sword')return o(pos+face);
@@ -71,8 +82,9 @@ async function enemyPhase(){
  if(!pl().alive)return end();
  if(hooks.length){await climb();if(!pl().alive)return end()}
  else{
-  if(foes().length<=1&&cd<0)cd=2;
-  if(cd>=0){if(foes().length===0||cd===0){throwHooks(1+(Math.random()*2|0));cd=-1}else cd--}
+  if(foes().length===0){throwHooks(2+(Math.random()*2|0));cd=-1}
+  else{if(foes().length<=1&&cd<0)cd=2;
+  if(cd>=0){if(cd===0){throwHooks(1+(Math.random()*2|0));cd=-1}else cd--}}
  }
  foes().forEach(e=>e.intent=plan(e));
  turn++;msg=HINT;busy=false;
@@ -86,7 +98,7 @@ async function act(fn){
  await enemyPhase();
 }
 const bad=m=>{msg=m;shk=now();return false};
-const doMove=d=>async()=>{const q=pl().pos+d;if(!inb(q))return bad('Tepi tile! Biksu bisa jatuh.');if(at(q)||hookAt(q))return bad('Tile terhalang.');pl().pos=q;await sleep(280);return true};
+const doMove=d=>async()=>{const q=pl().pos+d;if(!inb(q))return bad('Tepi tile! Biksu bisa jatuh.');if(at(q))return bad('Tile terhalang.');pl().pos=q;await sleep(280);return true};
 const doTurn=async()=>{pl().face*=-1;await sleep(220);return true};
 const discardAll=async()=>{disc.push(...hand);hand=[draw1(),draw1(),draw1()];await sleep(300);return true};
 const useCard=i=>async()=>{
@@ -103,7 +115,7 @@ const useCard=i=>async()=>{
  disc.push(c);hand[i]=draw1();await sleep(450);return true;
 };
 function show(t,b,btns){ov.innerHTML='<h2>'+t+'</h2><div>'+b+'</div>';btns.forEach(([l,f])=>{const x=document.createElement('button');x.textContent=l;x.onclick=()=>{ov.style.display='none';f()};ov.appendChild(x)});ov.style.display='flex'}
-const RULES='Mode endless: bertahan selama mungkin. Saat musuh tersisa 1 (atau 0), tali grapple muncul 1–2 giliran sebelum musuh baru memanjat masuk dari kanan. Tile bertali terhalang; jika kartu menaruh musuh di sana, pendatang dan musuh itu jatuh bersama. Jatuh dari ujung tile = mati.<br>1 aksi per giliran: gerak (swipe ↑↓), putar (swipe ←→), pakai 1 kartu (drag ke atas), atau buang semua kartu (drag ke bawah).<br>Ikon di kanan = intensi musuh. Area merah menunjukkan tile yang akan terkena serangan. Pemanah baru bersiap jika biksu terlihat tanpa musuh yang menutupi. Push/throw yang menabrak musuh lain membunuh keduanya.';
+const RULES='Mode endless: bertahan selama mungkin. Saat musuh tersisa 1 (atau 0), 1–2 musuh baru muncul acak setelah cooldown 2 giliran (langsung muncul jika arena kosong). Jatuh dari ujung tile = mati.<br>1 aksi per giliran: gerak (swipe ↑↓), putar (swipe ←→), pakai 1 kartu (drag ke atas), atau buang semua kartu (drag ke bawah).<br>Ikon di kanan = intensi musuh. Tali grapple = tile yang akan dinaiki musuh baru. Musuh tidak bisa masuk ke sana, tapi kamu bisa (siapa pun yang ada di tile itu mati bersama pendatang). Serangan hanya mengenai arah hadap. Push/throw yang menabrak musuh lain membunuh keduanya.';
 const slotX=i=>CX+(i-1)*104-44,CT=588,CW=88,CH=135;
 const P=ev=>{const r=cv.getBoundingClientRect();return{x:(ev.clientX-r.left)*W/r.width,y:(ev.clientY-r.top)*H/r.height}};
 cv.addEventListener('pointerdown',ev=>{const p=P(ev);if(over)return;
@@ -125,22 +137,24 @@ function sprite(e){const s=A.sp[e.t],f=e.face>0?'down':'up';return e.t==='monk'?
 function tri(x,y,dir,col){g.fillStyle=col;g.beginPath();g.moveTo(x,y+dir*8);g.lineTo(x-8,y-dir*3);g.lineTo(x+8,y-dir*3);g.fill()}
 function intentKey(e){const it=e.intent;if(!it)return null;const w={sword:'sword',archer:'arrow',thrower:'throw'}[e.t];
  return it.k==='move'?(it.d>0?'down':'up'):it.k==='turn'?'turn':it.k==='ancang'?w:it.k==='attack'?w+'B':null}
+const clouds=[[40,170,30],[335,130,26],[38,380,34],[350,430,30],[48,540,28],[345,520,34]];
 function drawHook(h,t){
  const k=Math.min(1,(t-h.t0)/450),ez=1-Math.pow(1-k,3),hx=W+30+(262-W-30)*ez,y=rowY(h.pos);
  g.fillStyle='rgba(0,0,0,.06)';g.fillRect(105,y-TH/2,170,TH);
  g.strokeStyle='#111';g.lineWidth=2;g.beginPath();g.moveTo(W+10,y-80);g.quadraticCurveTo((W+hx)/2,y-60+(1-ez)*-40,hx+18,y);g.stroke();
  g.lineWidth=3.5;g.beginPath();g.moveTo(hx+22,y);g.lineTo(hx,y);g.moveTo(hx+14,y-12);g.lineTo(hx,y);g.lineTo(hx+14,y+12);g.stroke();
 }
-function warn(e){
- const f=e.face,R='rgba(225,60,60,.9)';g.save();g.strokeStyle=R;g.fillStyle=R;
- if(e.t==='sword'){const q=e.pos+f;if(inb(q)){const y=TY+q*TH;g.beginPath();g.rect(105,y,170,TH);g.clip();g.fillStyle='rgba(225,60,60,.14)';g.fillRect(105,y,170,TH);g.lineWidth=3;
+function warn(e,top){
+ const f=e.face,R='rgba(225,60,60,.92)';g.save();g.strokeStyle=R;g.fillStyle=R;
+ if(e.t==='sword'&&!top){const q=e.pos+f;if(inb(q)){const y=TY+q*TH;g.beginPath();g.rect(105,y,170,TH);g.clip();g.fillStyle='rgba(225,60,60,.14)';g.fillRect(105,y,170,TH);g.lineWidth=3;
   for(let i=-TH;i<170;i+=16){g.beginPath();g.moveTo(105+i,y+TH);g.lineTo(105+i+TH,y);g.stroke()}}}
- else if(e.t==='archer'){const T=targets(e);for(let q=e.pos+f;inb(q);q+=f){for(let k=-1;k<=1;k++){g.beginPath();g.arc(CX,rowY(q)+k*28,4.5,0,7);g.fill()}if(T.length&&q===T[0])break}}
- else{const q=e.pos+2*f;if(inb(q)){const y=rowY(q);g.lineWidth=3;g.beginPath();g.arc(CX,y,15,0,7);g.stroke();g.beginPath();g.arc(CX,y,3,0,7);g.fill();
-  g.beginPath();[[-1,0],[1,0],[0,-1],[0,1]].forEach(([a,b])=>{g.moveTo(CX+a*10,y+b*10);g.lineTo(CX+a*26,y+b*26)});g.stroke()}}
+ else if(e.t==='archer'&&top){const T=targets(e),y0=rowY(e.pos)+f*30,y1=T.length?rowY(T[0]):(f>0?TY+N*TH:TY);
+  g.lineWidth=4.5;g.lineCap='round';g.setLineDash([1,11]);g.lineDashOffset=-(now()/35)%12;g.beginPath();g.moveTo(CX,y0);g.lineTo(CX,y1);g.stroke();g.setLineDash([]);
+  if(T.length){g.beginPath();g.arc(CX,y1,7,0,7);g.fill()}}
+ else if(e.t==='thrower'&&top){const q=e.pos+2*f;if(inb(q)){const y=rowY(q);g.lineWidth=3.5;g.beginPath();g.arc(CX,y,16,0,7);g.stroke();g.beginPath();g.arc(CX,y,3.5,0,7);g.fill();
+  g.beginPath();[[-1,0],[1,0],[0,-1],[0,1]].forEach(([a,b])=>{g.moveTo(CX+a*11,y+b*11);g.lineTo(CX+a*28,y+b*28)});g.stroke()}}
  g.restore();
 }
-const clouds=[[40,170,30],[335,130,26],[38,380,34],[350,430,30],[48,540,28],[345,520,34]];
 function draw(){
  const t=now();g.clearRect(0,0,W,H);g.fillStyle='#fff';g.fillRect(0,0,W,H);
  g.strokeStyle='#111';g.lineWidth=1.5;clouds.forEach(([x,y,r])=>{g.beginPath();g.arc(x,y,r,Math.PI*1.05,Math.PI*1.95);g.stroke();g.beginPath();g.arc(x+r*.7,y+4,r*.7,Math.PI*1.1,Math.PI*1.9);g.stroke()});
@@ -155,7 +169,7 @@ function draw(){
  g.fillText('Giliran '+turn+' · Kill: '+kills+' · Musuh: '+foes().length+(hooks.length?' · Spawn: 1':cd>=0?' · Spawn: '+(cd+1):''),CX+14,26);
  g.font='11px "Segoe Print","Comic Sans MS",cursive';g.fillStyle='#444';g.fillText(drag?DESC[hand[drag.i]]:msg,CX,48);
  hooks.forEach(h=>drawHook(h,t));
- foes().forEach(e=>{if(e.intent&&e.intent.k==='attack')warn(e)});
+ foes().forEach(e=>{if(e.intent&&e.intent.k==='attack')warn(e,0)});
  // entities
  const sh=now()-shk<300?Math.sin(now()*.08)*5:0;
  [...ents.filter(e=>e.alive)].sort((a,b)=>a.vy-b.vy).forEach(e=>{
@@ -164,10 +178,11 @@ function draw(){
   if(e.intent&&e.intent.k==='attack')ox=Math.sin(t*.05)*2.5;if(e.atk)oy=e.face*14;
   if(e===pl())ox+=sh;
   g.drawImage(im.im,CX-w/2+ox+(e.vx||0),e.vy+40-h+oy,w,h);
-  if(e!==pl()){const k=intentKey(e);const ic=k&&A.int[k];const ih=56,iw=ic?ih*ic.ar:44;
+  if(e!==pl()&&e.intent){const k=intentKey(e);const ic=k&&A.int[k];const ih=56,iw=ic?ih*ic.ar:44;
    if(ic)g.drawImage(ic.im,284,e.vy-ih/2,iw,ih);
    else{g.fillStyle='#fff';g.strokeStyle='#111';g.lineWidth=2;g.fillRect(284,e.vy-28,44,56);g.strokeRect(284,e.vy-28,44,56);g.fillStyle='#111';g.font='18px sans-serif';g.fillText('…',306,e.vy+6)}}
  });
+ foes().forEach(e=>{if(e.intent&&e.intent.k==='attack')warn(e,1)});
  ghosts=ghosts.filter(o=>t-o.t0<700);
  ghosts.forEach(o=>{const k=(t-o.t0)/700,e=o.e,im=sprite(e),h=A.H[e.t]*(1-k*.3*(o.fall?1:0)),w=h*im.ar;
   g.globalAlpha=1-k;g.drawImage(im.im,CX-w/2,e.vy+40-h+o.fall*k*130,w,h);g.globalAlpha=1});
