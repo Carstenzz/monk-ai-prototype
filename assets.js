@@ -8,6 +8,14 @@ const A={
    "up": {
     "src": "assets/sprite-monk-up.png",
     "ar": 0.6964285714285714
+   },
+   "left": {
+    "src": "assets/sprite-monk-left.png",
+    "ar": 0.7734806629834254
+   },
+   "right": {
+    "src": "assets/sprite-monk-right.png",
+    "ar": 0.7734806629834254
    }
   },
   "archer": {
@@ -19,6 +27,14 @@ const A={
     "down": {
      "src": "assets/sprite-archer-idle-down.png",
      "ar": 0.8111111111111111
+    },
+    "left": {
+     "src": "assets/sprite-archer-idle-left.png",
+     "ar": 0.7955801104972375
+    },
+    "right": {
+     "src": "assets/sprite-archer-idle-right.png",
+     "ar": 0.7955801104972375
     }
    },
    "act": {
@@ -29,6 +45,14 @@ const A={
     "down": {
      "src": "assets/sprite-archer-act-down.png",
      "ar": 0.8
+    },
+    "left": {
+     "src": "assets/sprite-archer-act-left.png",
+     "ar": 0.7955801104972375
+    },
+    "right": {
+     "src": "assets/sprite-archer-act-right.png",
+     "ar": 0.7955801104972375
     }
    }
   },
@@ -41,6 +65,14 @@ const A={
     "down": {
      "src": "assets/sprite-sword-idle-down.png",
      "ar": 0.8154761904761905
+    },
+    "left": {
+     "src": "assets/sprite-sword-idle-left.png",
+     "ar": 0.7734806629834254
+    },
+    "right": {
+     "src": "assets/sprite-sword-idle-right.png",
+     "ar": 0.7734806629834254
     }
    },
    "act": {
@@ -51,6 +83,14 @@ const A={
     "down": {
      "src": "assets/sprite-sword-act-down.png",
      "ar": 1.0
+    },
+    "left": {
+     "src": "assets/sprite-sword-act-left.png",
+     "ar": 0.9281767955801105
+    },
+    "right": {
+     "src": "assets/sprite-sword-act-right.png",
+     "ar": 0.9281767955801105
     }
    }
   },
@@ -63,6 +103,14 @@ const A={
     "up": {
      "src": "assets/sprite-thrower-idle-up.png",
      "ar": 0.8
+    },
+    "left": {
+     "src": "assets/sprite-thrower-idle-left.png",
+     "ar": 0.7955801104972375
+    },
+    "right": {
+     "src": "assets/sprite-thrower-idle-right.png",
+     "ar": 0.7955801104972375
     }
    },
    "act": {
@@ -73,6 +121,14 @@ const A={
     "up": {
      "src": "assets/sprite-thrower-act-up.png",
      "ar": 0.8333333333333334
+    },
+    "left": {
+     "src": "assets/sprite-thrower-act-left.png",
+     "ar": 0.8287292817679558
+    },
+    "right": {
+     "src": "assets/sprite-thrower-act-right.png",
+     "ar": 0.8287292817679558
     }
    }
   }

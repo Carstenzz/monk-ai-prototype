@@ -1,6 +1,6 @@
 # Monk Defense — Prototype
 
-Prototype playable (canvas) untuk game biksu defensif.
+Prototype playable (canvas) untuk game biksu defensif — versi arena 2D 3×5 dengan 4 arah hadap.
 
 ## Jalankan
 - Lokal: `python3 -m http.server` di folder ini, lalu buka `http://localhost:8000`.
@@ -13,5 +13,5 @@ Prototype playable (canvas) untuk game biksu defensif.
 - `assets/` — sprite, kartu, ikon intensi
 
 ## Kontrol
-Swipe atas/bawah = gerak, kiri/kanan = putar. Drag kartu ke atas = pakai, drag ke bawah = buang semua.
-Keyboard: panah, 1-3 untuk kartu, D untuk discard.
+Swipe atas/bawah/kiri/kanan = jalan 1 tile (arah hadap tidak berubah). Putar hadap: tap biksu, lalu tap tile di sebelahnya (di tepi arena, tap area luar untuk menghadap ke luar). 5 kartu tetap (pull, swap, push, twist, throw): drag ke atas = pakai, lalu cooldown 4 giliran per kartu. Tombol bawah = tunggu 1 giliran.
+Keyboard: panah = jalan, Shift+panah = putar hadap, 1-5 untuk kartu, Spasi/W = tunggu.
